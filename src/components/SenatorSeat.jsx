@@ -55,6 +55,7 @@ export default function SenatorSeat({ participant, compact = false }) {
         flex flex-col items-center gap-1 rounded-2xl bg-surface-2 border border-white/6 cursor-pointer
         transition-all duration-250 ease-in-out relative min-w-[90px] backdrop-blur-md
         border-l-3 ${colors.border}
+        ${showMenu ? 'z-50' : ''}
         ${status === 'speaking' ? 'animate-speaking border-gold-400' : ''}
         ${status === 'removed' ? 'opacity-35 pointer-events-none grayscale-[0.8]' : ''}
         ${role === 'spare' ? 'opacity-60' : ''}

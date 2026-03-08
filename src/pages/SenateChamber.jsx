@@ -20,10 +20,6 @@ export default function SenateChamber() {
 
   const forDebaters = participants.filter(p => p.role === 'for');
   const againstDebaters = participants.filter(p => p.role === 'against');
-  const forFront = forDebaters.slice(0, Math.ceil(forDebaters.length / 2));
-  const forBack = forDebaters.slice(Math.ceil(forDebaters.length / 2));
-  const againstFront = againstDebaters.slice(0, Math.ceil(againstDebaters.length / 2));
-  const againstBack = againstDebaters.slice(Math.ceil(againstDebaters.length / 2));
 
   const handleSimulateSpeech = () => {
     const active = participants.filter(p => p.status !== 'removed' && p.role !== 'judge');
@@ -63,30 +59,33 @@ export default function SenateChamber() {
         {/* Judge Bench */}
         <JudgeBench />
 
-        {/* Hemicycle */}
-        <div className="w-full relative min-h-[420px] flex flex-col items-center gap-6">
-          {/* Labels */}
-          <div className="flex justify-between w-full px-6">
+        {/* Senate Floor — Split Grid */}
+        <div className="w-full flex gap-0 items-stretch">
+          {/* FOR faction — left side */}
+          <div className="flex-1 flex flex-col items-center gap-3 pr-4">
             <span className="font-display text-[0.7rem] uppercase tracking-[0.2em] text-faction-for bg-faction-for/8 border border-faction-for/15 px-4 py-1 rounded-md">
               🟢 For the Motion
             </span>
+            <div className="grid grid-cols-2 gap-2 w-full justify-items-center xl:grid-cols-3">
+              {forDebaters.map(p => (
+                <SenatorSeat key={p.id} participant={p} />
+              ))}
+            </div>
+          </div>
+
+          {/* Center Divider */}
+          <div className="w-px bg-gradient-to-b from-transparent via-gold-500/30 to-transparent self-stretch mx-1 flex-shrink-0" />
+
+          {/* AGAINST faction — right side */}
+          <div className="flex-1 flex flex-col items-center gap-3 pl-4">
             <span className="font-display text-[0.7rem] uppercase tracking-[0.2em] text-faction-against bg-faction-against/8 border border-faction-against/15 px-4 py-1 rounded-md">
               🔴 Against the Motion
             </span>
-          </div>
-
-          {/* Front Row */}
-          <div className="flex justify-center gap-2 flex-wrap max-w-full">
-            {forFront.map((p, i) => <SenatorSeat key={p.id} participant={p} />)}
-            <div className="w-0.5 bg-gradient-to-b from-transparent via-gold-500 to-transparent h-15 mx-2 self-center" />
-            {againstFront.map((p, i) => <SenatorSeat key={p.id} participant={p} />)}
-          </div>
-
-          {/* Back Row */}
-          <div className="flex justify-center gap-4 flex-wrap max-w-full scale-[0.92] opacity-90">
-            {forBack.map((p, i) => <SenatorSeat key={p.id} participant={p} />)}
-            <div className="w-0.5 bg-gradient-to-b from-transparent via-gold-500 to-transparent h-15 mx-2 self-center" />
-            {againstBack.map((p, i) => <SenatorSeat key={p.id} participant={p} />)}
+            <div className="grid grid-cols-2 gap-2 w-full justify-items-center xl:grid-cols-3">
+              {againstDebaters.map(p => (
+                <SenatorSeat key={p.id} participant={p} />
+              ))}
+            </div>
           </div>
         </div>
 
@@ -123,3 +122,4 @@ export default function SenateChamber() {
     </div>
   );
 }
+
