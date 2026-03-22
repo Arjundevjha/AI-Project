@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { useDebate } from '../context/DebateContext';
+import { useSenateSpeech } from '../hooks/useSenateSpeech';
 
 export default function TranscriptPanel() {
   const { transcript } = useDebate();
   const [search, setSearch] = useState('');
   const bodyRef = useRef(null);
+  const { challengeSpeech, loading } = useSenateSpeech();
 
   useEffect(() => {
     if (bodyRef.current) {
@@ -67,7 +69,15 @@ export default function TranscriptPanel() {
           </div>
         ) : (
           filtered.map((entry, index) => (
-            <div key={entry.id} className={`flex gap-2 px-2 py-1 rounded-md transition-colors duration-150 hover:bg-white/3 animate-fade-in ${entryStyles[entry.type] || ''}`}>
+            <div
+              key={entry.id}
+              className={`
+                flex gap-2 px-2 py-1 rounded-md transition-colors duration-150 group relative
+                ${entry.stricken ? 'opacity-40' : 'hover:bg-white/3'}
+                ${entryStyles[entry.type] || ''}
+                animate-fade-in
+              `}
+            >
               <span className="text-text-dim min-w-8 text-right select-none text-[0.7rem]">{index + 1}.</span>
               <span className="text-text-dim min-w-[65px] text-[0.7rem]">{formatTime(entry.timestamp)}</span>
               <span className={`font-semibold min-w-[100px] truncate ${speakerColor[entry.role] || 'text-text-dim'}`}>
@@ -82,7 +92,34 @@ export default function TranscriptPanel() {
               `}>
                 {entry.role}
               </span>
-              <span className="flex-1 text-text-primary break-words">{entry.text}</span>
+              <span className={`flex-1 text-text-primary break-words ${entry.stricken ? 'line-through decoration-faction-against/60' : ''}`}>
+                {entry.text}
+              </span>
+
+              {/* Stricken badge */}
+              {entry.stricken && (
+                <span className="text-[0.6rem] text-faction-against font-bold tracking-wider bg-faction-against/8 px-1.5 py-0.5 rounded self-center flex-shrink-0">
+                  STRICKEN
+                </span>
+              )}
+
+              {/* Challenge button — only on senator statements that haven't been stricken */}
+              {entry.type === 'statement' && !entry.stricken && (entry.role === 'for' || entry.role === 'against') && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    challengeSpeech(entry);
+                  }}
+                  disabled={loading}
+                  className="opacity-0 group-hover:opacity-100 text-[0.6rem] text-faction-against bg-faction-against/8 border border-faction-against/15 px-1.5 py-0.5 rounded cursor-pointer self-center flex-shrink-0 transition-all duration-200
+                    hover:bg-faction-against/15 hover:border-faction-against/30
+                    disabled:opacity-20 disabled:cursor-not-allowed"
+                  title="Raise point of order — challenge for unparliamentary language"
+                >
+                  ⚠️ Challenge
+                </button>
+              )}
+
               {entry.type === 'bribe_attempt' && (
                 <span className="absolute top-0.5 right-2 text-[0.6rem] text-faction-against font-bold tracking-wider">⚠️ BRIBE DETECTED</span>
               )}
@@ -94,7 +131,12 @@ export default function TranscriptPanel() {
       {/* Footer */}
       <div className="px-4 py-2 border-t border-white/6 flex justify-between items-center text-[0.7rem] text-text-dim">
         <span>{transcript.length} entries recorded</span>
-        <span>Session Active</span>
+        <span>
+          {transcript.filter(t => t.stricken).length > 0 && (
+            <span className="text-faction-against mr-3">{transcript.filter(t => t.stricken).length} stricken</span>
+          )}
+          Session Active
+        </span>
       </div>
     </div>
   );

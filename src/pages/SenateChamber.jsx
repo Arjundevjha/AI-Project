@@ -7,12 +7,14 @@ import PresidentControls from '../components/PresidentControls';
 import SpareBench from '../components/SpareBench';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
+import { useSenateSpeech } from '../hooks/useSenateSpeech';
 
 export default function SenateChamber() {
   const state = useDebate();
   const dispatch = useDebateDispatch();
   const navigate = useNavigate();
-  const { phase, motion, participants, round } = state;
+  const { phase, motion, participants, round, loading } = state;
+  const { triggerSpeakRequests } = useSenateSpeech();
 
   useEffect(() => {
     if (phase === PHASES.DELIBERATION) navigate('/deliberation');
@@ -20,25 +22,6 @@ export default function SenateChamber() {
 
   const forDebaters = participants.filter(p => p.role === 'for');
   const againstDebaters = participants.filter(p => p.role === 'against');
-
-  const handleSimulateSpeech = () => {
-    const active = participants.filter(p => p.status !== 'removed' && p.role !== 'judge');
-    if (active.length === 0) return;
-    const speaker = active[Math.floor(Math.random() * active.length)];
-    const speeches = [
-      "I rise to address this motion with great concern for its implications on society.",
-      "Honorable judges, the evidence clearly supports our position on this matter.",
-      "I object to the characterization presented by the opposition. The facts speak otherwise.",
-      "Let me present data that fundamentally contradicts the previous speaker's claims.",
-      "With all due respect to my colleagues across the aisle, their argument fails to account for...",
-      "The precedent here is clear, and I urge this chamber to uphold the principles at stake.",
-      "I yield my remaining time to address a critical point that has been overlooked.",
-      "Point of order! The previous statement contains factual inaccuracies.",
-    ];
-    dispatch({ type: 'SET_SPEAKING', payload: speaker.id });
-    dispatch({ type: 'ADD_TRANSCRIPT', payload: { speakerId: speaker.id, speakerName: speaker.modelName, role: speaker.role, text: speeches[Math.floor(Math.random() * speeches.length)], type: 'statement' } });
-    setTimeout(() => dispatch({ type: 'SET_SPEAKING', payload: null }), 3000);
-  };
 
   return (
     <div className="min-h-screen grid grid-cols-[1fr_340px] grid-rows-[auto_auto_1fr_auto] gap-4 p-4 max-lg:grid-cols-1">
@@ -89,12 +72,19 @@ export default function SenateChamber() {
           </div>
         </div>
 
-        {/* Demo button */}
+        {/* Summon Speakers button */}
         <button
-          onClick={handleSimulateSpeech}
-          className="mt-4 px-4 py-2 bg-surface-2 border border-white/6 rounded-xl text-text-primary text-[0.875rem] font-medium cursor-pointer transition-all duration-250 hover:bg-surface-3 hover:border-gold-500 hover:shadow-[0_0_20px_rgba(201,168,76,0.25)] hover:-translate-y-px"
+          onClick={() => triggerSpeakRequests(3)}
+          disabled={loading || phase !== PHASES.DEBATE_ACTIVE}
+          className="mt-4 px-6 py-3 bg-gradient-to-br from-gold-500/15 to-president/10 border border-gold-500/25 rounded-xl text-text-primary text-[0.875rem] font-semibold cursor-pointer transition-all duration-250 flex items-center gap-2
+            hover:bg-gold-500/20 hover:border-gold-400 hover:shadow-[0_0_25px_rgba(201,168,76,0.3)] hover:-translate-y-px
+            disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
         >
-          🎤 Simulate Speech (Demo)
+          {loading ? (
+            <><span className="animate-spin">⏳</span> Generating...</>
+          ) : (
+            <>🙋 Call for Speakers</>
+          )}
         </button>
       </div>
 
@@ -109,7 +99,7 @@ export default function SenateChamber() {
         <div className="fixed inset-0 bg-navy-900/85 flex items-center justify-center z-[1000] backdrop-blur-md animate-fade-in">
           <div className="bg-surface-1 border border-faction-against/30 rounded-3xl px-12 py-8 text-center max-w-[500px] shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
             <h2 className="font-display text-faction-against text-xl mb-4">⏸️ Session Suspended</h2>
-            <p className="text-text-secondary mb-6 font-serif text-[1.05rem]">{state.pauseReason || 'Session has been paused by the President.'}</p>
+            <p className="text-text-secondary mb-6 font-serif text-[1.05rem]">{state.pauseReason || 'Session has been paused by the Speaker.'}</p>
             <button
               onClick={() => dispatch({ type: 'RESUME_SESSION' })}
               className="px-6 py-3 bg-gradient-to-br from-gold-500 to-gold-400 text-navy-900 border border-gold-400 rounded-xl font-semibold cursor-pointer transition-all duration-250 hover:from-gold-400 hover:to-gold-300 hover:shadow-[0_0_30px_rgba(201,168,76,0.25)]"
@@ -122,4 +112,3 @@ export default function SenateChamber() {
     </div>
   );
 }
-

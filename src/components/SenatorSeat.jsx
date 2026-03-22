@@ -1,13 +1,19 @@
 import { useState } from 'react';
-import { useDebateDispatch } from '../context/DebateContext';
+import { useDebateDispatch, useDebate } from '../context/DebateContext';
+import { useSenateSpeech } from '../hooks/useSenateSpeech';
 
 export default function SenatorSeat({ participant, compact = false }) {
   const [showMenu, setShowMenu] = useState(false);
   const dispatch = useDebateDispatch();
+  const state = useDebate();
+  const { requestToSpeak, loading } = useSenateSpeech();
 
   if (!participant) return null;
 
   const { id, modelName, icon, provider, role, status } = participant;
+
+  // Check if this senator has a pending speak request
+  const hasRequest = state.speakRequests?.some(r => r.senatorId === id);
 
   const roleColors = {
     for: { border: 'border-l-faction-for', avatarBg: 'bg-faction-for/10', avatarBorder: 'border-faction-for/30', badge: 'bg-faction-for/10 text-faction-for border border-faction-for/20' },
@@ -25,7 +31,7 @@ export default function SenatorSeat({ participant, compact = false }) {
       type: 'ADD_TRANSCRIPT',
       payload: {
         speakerId: 'president',
-        speakerName: 'Mr. President',
+        speakerName: 'Mr. Speaker',
         role: 'president',
         text: `I hereby order the removal of Senator ${modelName} from these proceedings.`,
         type: 'system',
@@ -35,18 +41,9 @@ export default function SenatorSeat({ participant, compact = false }) {
     setTimeout(() => dispatch({ type: 'RESUME_SESSION' }), 1500);
   };
 
-  const handleRequestSubstitution = () => {
-    dispatch({
-      type: 'ADD_TRANSCRIPT',
-      payload: {
-        speakerId: id,
-        speakerName: modelName,
-        role,
-        text: `I request a substitution for this position.`,
-        type: 'point_of_order',
-      },
-    });
+  const handleRequestToSpeak = async () => {
     setShowMenu(false);
+    await requestToSpeak(participant);
   };
 
   return (
@@ -57,19 +54,32 @@ export default function SenatorSeat({ participant, compact = false }) {
         border-l-3 ${colors.border}
         ${showMenu ? 'z-50' : ''}
         ${status === 'speaking' ? 'animate-speaking border-gold-400' : ''}
+        ${status === 'loading' ? 'border-gold-400/50 animate-pulse' : ''}
         ${status === 'removed' ? 'opacity-35 pointer-events-none grayscale-[0.8]' : ''}
         ${role === 'spare' ? 'opacity-60' : ''}
+        ${hasRequest ? 'border-president/40 shadow-[0_0_12px_rgba(243,156,18,0.15)]' : ''}
         ${compact ? 'px-2 py-1' : 'px-4 py-2'}
         hover:-translate-y-[3px] hover:border-gold-500 hover:shadow-[0_0_20px_rgba(201,168,76,0.25)]
       `}
       onClick={() => setShowMenu(!showMenu)}
       title={`${modelName} (${provider}) — ${role.toUpperCase()}`}
     >
+      {/* Hand-raised indicator */}
+      {hasRequest && (
+        <span className="absolute -top-2 -right-1 text-[0.9rem] animate-bounce z-10">🙋</span>
+      )}
+
+      {/* Loading indicator */}
+      {status === 'loading' && (
+        <span className="absolute -top-2 -right-1 text-[0.9rem] animate-spin z-10">💭</span>
+      )}
+
       {/* Status dot */}
       <span className={`
         w-2 h-2 rounded-full inline-block
         ${status === 'active' ? 'bg-faction-for shadow-[0_0_8px_rgba(46,204,113,0.3)]' : ''}
         ${status === 'speaking' ? 'bg-gold-400 shadow-[0_0_8px_rgba(201,168,76,0.25)] animate-pulse-glow' : ''}
+        ${status === 'loading' ? 'bg-president shadow-[0_0_8px_rgba(243,156,18,0.25)] animate-pulse' : ''}
         ${status === 'removed' ? 'bg-faction-against' : ''}
         ${status === 'idle' ? 'bg-text-dim' : ''}
       `} />
@@ -102,6 +112,7 @@ export default function SenatorSeat({ participant, compact = false }) {
         absolute top-1.5 right-1.5 w-2 h-2 rounded-full
         ${status === 'active' ? 'bg-faction-for shadow-[0_0_8px_rgba(46,204,113,0.3)]' : ''}
         ${status === 'speaking' ? 'bg-gold-400 shadow-[0_0_8px_rgba(201,168,76,0.25)]' : ''}
+        ${status === 'loading' ? 'bg-president shadow-[0_0_8px_rgba(243,156,18,0.25)]' : ''}
         ${status === 'removed' ? 'bg-faction-against' : ''}
         ${status === 'idle' ? 'bg-text-dim' : ''}
       `} />
@@ -109,23 +120,26 @@ export default function SenatorSeat({ participant, compact = false }) {
       {/* Context Menu */}
       {showMenu && status !== 'removed' && (
         <div
-          className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-navy-700 border border-white/6 rounded-xl p-1 z-[100] flex flex-col gap-0.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] min-w-[140px] animate-fade-in"
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-navy-700 border border-white/6 rounded-xl p-1 z-[100] flex flex-col gap-0.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] min-w-[160px] animate-fade-in"
           onClick={e => e.stopPropagation()}
         >
+          {role !== 'judge' && role !== 'spare' && (
+            <button
+              className="w-full text-left px-2 py-1.5 bg-transparent border-none text-president text-[0.75rem] cursor-pointer rounded-md hover:bg-president/10 transition-colors duration-150 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={handleRequestToSpeak}
+              disabled={loading || hasRequest || status === 'loading'}
+            >
+              🙋 Request to Speak
+            </button>
+          )}
           <button
-            className="w-full text-left px-2 py-1 bg-transparent border-none text-text-primary text-[0.75rem] cursor-pointer rounded-md hover:bg-surface-3 transition-colors duration-150"
-            onClick={handleRequestSubstitution}
-          >
-            🔄 Request Substitution
-          </button>
-          <button
-            className="w-full text-left px-2 py-1 bg-transparent border-none text-faction-against text-[0.75rem] cursor-pointer rounded-md hover:bg-faction-against/10 transition-colors duration-150"
+            className="w-full text-left px-2 py-1.5 bg-transparent border-none text-faction-against text-[0.75rem] cursor-pointer rounded-md hover:bg-faction-against/10 transition-colors duration-150 font-medium"
             onClick={handleRemove}
           >
             🚫 Remove Senator
           </button>
           <button
-            className="w-full text-left px-2 py-1 bg-transparent border-none text-text-primary text-[0.75rem] cursor-pointer rounded-md hover:bg-surface-3 transition-colors duration-150"
+            className="w-full text-left px-2 py-1.5 bg-transparent border-none text-text-primary text-[0.75rem] cursor-pointer rounded-md hover:bg-surface-3 transition-colors duration-150"
             onClick={() => setShowMenu(false)}
           >
             ✕ Close

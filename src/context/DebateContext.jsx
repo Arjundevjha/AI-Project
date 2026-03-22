@@ -21,16 +21,24 @@ const initialState = {
 
   // Participants: { id, modelId, modelName, icon, provider, role, status }
   // role: 'for' | 'against' | 'judge' | 'spare'
-  // status: 'active' | 'speaking' | 'removed' | 'substituted' | 'idle'
+  // status: 'active' | 'speaking' | 'removed' | 'substituted' | 'idle' | 'loading'
   participants: [],
   spares: [],
 
-  // Transcript entries: { id, speakerId, speakerName, role, text, timestamp, type }
+  // Transcript entries: { id, speakerId, speakerName, role, text, timestamp, type, stricken }
   // type: 'statement' | 'objection' | 'point_of_order' | 'bribe_attempt' | 'system'
   transcript: [],
 
   // Who is currently speaking
   activeSpeaker: null,
+
+  // Queue of senators requesting to speak
+  // { senatorId, senatorName, side, request, icon, modelId }
+  speakRequests: [],
+
+  // Active challenges (unparliamentary language)
+  // { id, transcriptEntryId, challengedSpeech, challengedSenatorName, objectorName, analysis, pointOfOrder }
+  activeChallenges: [],
 
   // Verdict
   verdict: null,
@@ -59,6 +67,8 @@ function debateReducer(state, action) {
         participants,
         spares,
         round: 1,
+        speakRequests: [],
+        activeChallenges: [],
         transcript: [{
           id: Date.now(),
           speakerId: 'system',
@@ -67,6 +77,7 @@ function debateReducer(state, action) {
           text: `Session commenced. Motion: "${state.motion}"`,
           timestamp: new Date().toISOString(),
           type: 'system',
+          stricken: false,
         }],
       };
     }
@@ -77,6 +88,7 @@ function debateReducer(state, action) {
         transcript: [...state.transcript, {
           id: Date.now() + Math.random(),
           timestamp: new Date().toISOString(),
+          stricken: false,
           ...action.payload,
         }],
       };
@@ -88,15 +100,77 @@ function debateReducer(state, action) {
         activeSpeaker: action.payload,
         participants: state.participants.map(p => ({
           ...p,
-          status: p.id === action.payload ? 'speaking' : (p.status === 'speaking' ? 'active' : p.status),
+          status: p.id === action.payload ? 'speaking' : (p.status === 'speaking' || p.status === 'loading' ? 'active' : p.status),
         })),
       };
+
+    // ─── New: Request to speak ───────────────────
+    case 'REQUEST_TO_SPEAK': {
+      // Don't allow duplicate requests
+      if (state.speakRequests.some(r => r.senatorId === action.payload.senatorId)) {
+        return state;
+      }
+      return {
+        ...state,
+        speakRequests: [...state.speakRequests, action.payload],
+      };
+    }
+
+    // ─── New: Grant floor ────────────────────────
+    case 'GRANT_FLOOR': {
+      const senatorId = action.payload;
+      return {
+        ...state,
+        activeSpeaker: senatorId,
+        speakRequests: state.speakRequests.filter(r => r.senatorId !== senatorId),
+        participants: state.participants.map(p => ({
+          ...p,
+          status: p.id === senatorId ? 'loading' : (p.status === 'speaking' ? 'active' : p.status),
+        })),
+      };
+    }
+
+    // ─── New: Deny floor ─────────────────────────
+    case 'DENY_FLOOR': {
+      return {
+        ...state,
+        speakRequests: state.speakRequests.filter(r => r.senatorId !== action.payload),
+      };
+    }
+
+    // ─── New: Raise point of order ───────────────
+    case 'RAISE_POINT_OF_ORDER': {
+      return {
+        ...state,
+        activeChallenges: [...state.activeChallenges, action.payload],
+      };
+    }
+
+    // ─── New: Strike from record ─────────────────
+    case 'STRIKE_FROM_RECORD': {
+      const { transcriptEntryId } = action.payload;
+      return {
+        ...state,
+        transcript: state.transcript.map(entry =>
+          entry.id === transcriptEntryId ? { ...entry, stricken: true } : entry
+        ),
+      };
+    }
+
+    // ─── New: Dismiss challenge ──────────────────
+    case 'DISMISS_CHALLENGE': {
+      return {
+        ...state,
+        activeChallenges: state.activeChallenges.filter(c => c.id !== action.payload),
+      };
+    }
 
     case 'NEXT_ROUND':
       return {
         ...state,
         round: state.round + 1,
         activeSpeaker: null,
+        speakRequests: [],
         participants: state.participants.map(p => ({
           ...p,
           status: p.status === 'speaking' ? 'active' : p.status,
@@ -143,6 +217,7 @@ function debateReducer(state, action) {
           text: `${removed.modelName} has been removed. ${replacement.modelName} takes their place as ${removed.role.toUpperCase()}.`,
           timestamp: new Date().toISOString(),
           type: 'system',
+          stricken: false,
         }],
       };
     }
